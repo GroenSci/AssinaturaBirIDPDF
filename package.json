@@ -9,6 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@signpdf/placeholder-pdf-lib": "^3.2.6",
     "express": "^4.18.2",
     "pdf-lib": "^1.17.1",
     "sign-pdf-lib": "^2.0.3"
