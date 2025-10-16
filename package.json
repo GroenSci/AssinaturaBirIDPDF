@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "express": "^4.18.2",
-    "pdf-lib": "^1.17.1"
+   "pdf-lib-digital-signatures": "github:Hopding/pdf-lib#feature/digital-signatures",
+  "express": "^4.18.2"
   }
 }
