@@ -32,7 +32,22 @@ app.post('/preparar-para-assinatura', async (req, res) => {
         if (!pdfDoc.catalog.get('AcroForm')) {
     pdfDoc.catalog.set('AcroForm', pdfDoc.context.obj({ Fields: [] }));
 }
-        const info = pdfDoc.context.lookup(pdfDoc.context.trailer.get('Info'));
+        // === Corrige PDFs sem metadados que quebram o pdflibAddPlaceholder ===
+try {
+    const trailer = pdfDoc.context.trailer;
+    const hasInfo = trailer && trailer.has('Info');
+
+    if (!hasInfo) {
+        const infoDict = pdfDoc.context.obj({
+            Producer: pdfDoc.context.obj('Assinador API'),
+            Creator: pdfDoc.context.obj('Assinador API'),
+        });
+        trailer.set('Info', infoDict);
+    }
+} catch (err) {
+    console.warn('Aviso: não foi possível definir metadados, prosseguindo...', err);
+}
+
 if (!info) {
     const newInfo = pdfDoc.context.obj({
         Producer: PDFDocument.PDFString?.of('Assinador API'),
