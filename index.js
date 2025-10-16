@@ -1,5 +1,5 @@
 const express = require('express');
-const { PDFDocument } = require("pdf-lib-with-digital-signatures");
+const { PDFDocument } = require('pdf-lib');
 
 const app = express();
 
