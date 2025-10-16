@@ -4,7 +4,7 @@ const { PDFDocument } = require('pdf-lib');
 const { pdflibAddPlaceholder } = require('@signpdf/placeholder-pdf-lib');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // Aceitar JSON grandes (PDFs em Base64)
 app.use(bodyParser.json({ limit: '50mb' }));
@@ -28,7 +28,7 @@ app.post('/preparar-para-assinatura', async (req, res) => {
 
         const pdfBytes = Buffer.from(pdfBase64, 'base64');
         const pdfDoc = await PDFDocument.load(pdfBytes);
-        
+
         if (!pdfDoc.catalog.get('AcroForm')) {
     pdfDoc.catalog.set('AcroForm', pdfDoc.context.obj({ Fields: [] }));
 }
