@@ -9,7 +9,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-  "pdf-lib-digital-signatures": "github:mhopfensperger/pdf-lib-digital-signatures",
+"pdf-lib-digital-signatures": "https://github.com/mhopfensperger/pdf-lib-digital-signatures.git",
   "express": "^4.18.2"
   }
 }
