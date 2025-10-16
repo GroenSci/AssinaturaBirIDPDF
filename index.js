@@ -28,7 +28,10 @@ app.post('/preparar-para-assinatura', async (req, res) => {
 
         const pdfBytes = Buffer.from(pdfBase64, 'base64');
         const pdfDoc = await PDFDocument.load(pdfBytes);
-
+        
+        if (!pdfDoc.catalog.get('AcroForm')) {
+    pdfDoc.catalog.set('AcroForm', pdfDoc.context.obj({ Fields: [] }));
+}
         // Adiciona placeholder para assinatura
         pdflibAddPlaceholder({
             pdfDoc,
