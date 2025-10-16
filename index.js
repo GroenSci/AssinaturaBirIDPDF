@@ -21,7 +21,36 @@ function hexToBytes(hex) {
     }
     return bytes;
 }
+app.post('/preparar-para-assinatura', async (req, res) => {
+    try {
+        // 1. Receber o PDF (em Base64) que foi gerado no Bubble
+        const { pdfBase64 } = req.body;
 
+        if (!pdfBase64) {
+            return res.status(400).json({ error: 'O campo "pdfBase64" é obrigatório.' });
+        }
+
+        // 2. Decodificar o Base64 e CARREGAR o PDF existente em memória
+        const pdfBytes = Buffer.from(pdfBase64, 'base64');
+        const pdfDoc = await PDFDocument.load(pdfBytes);
+
+        // 3. Executar a única tarefa: adicionar o placeholder de assinatura
+        pdfDoc.addSignaturePlaceholder({
+            name: 'br.com.meuapp.assinatura.principal',
+        });
+
+        // 4. Salvar o PDF agora modificado
+        const modifiedPdfBytes = await pdfDoc.save({ useObjectStreams: false });
+
+        // 5. Converter o PDF modificado para Base64 e devolvê-lo ao Bubble
+        const modifiedPdfBase64 = Buffer.from(modifiedPdfBytes).toString('base64');
+        res.status(200).json({ pdfBase64: modifiedPdfBase64 });
+
+    } catch (error) {
+        console.error("Erro ao preparar PDF para assinatura:", error);
+        res.status(500).json({ error: "Falha ao adicionar o placeholder de assinatura ao PDF." });
+    }
+});
 // 4. Definir a rota principal da nossa API: POST /sign-pdf
 app.post('/sign-pdf', async (req, res) => {
     try {
