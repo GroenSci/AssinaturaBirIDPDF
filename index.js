@@ -32,12 +32,21 @@ app.post('/preparar-para-assinatura', async (req, res) => {
         if (!pdfDoc.catalog.get('AcroForm')) {
     pdfDoc.catalog.set('AcroForm', pdfDoc.context.obj({ Fields: [] }));
 }
-        // Adiciona placeholder para assinatura
-        pdflibAddPlaceholder({
-            pdfDoc,
-            reason: 'Assinatura digital',
-            signatureLength: 8192 // tamanho do espaço reservado
-        });
+        const info = pdfDoc.context.lookup(pdfDoc.context.trailer.get('Info'));
+if (!info) {
+    const newInfo = pdfDoc.context.obj({
+        Producer: PDFDocument.PDFString?.of('Assinador API'),
+        Creator: PDFDocument.PDFString?.of('Assinador API')
+    });
+    pdfDoc.context.trailer.set('Info', newInfo);
+}
+
+// Adiciona placeholder para assinatura
+pdflibAddPlaceholder({
+    pdfDoc,
+    reason: 'Assinatura digital',
+    signatureLength: 8192
+});
 
         const modifiedPdfBytes = await pdfDoc.save({ useObjectStreams: false });
         const modifiedPdfBase64 = Buffer.from(modifiedPdfBytes).toString('base64');
