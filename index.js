@@ -1,67 +1,101 @@
-import express from 'express';
-import { PDFDocument } from 'pdf-lib';
-import { pdflibAddPlaceholder } from '@signpdf/placeholder-pdf-lib';
-import { SUBFILTER_ETSI_CADES_DETACHED } from '@signpdf/utils';
-import signpdf from '@signpdf/signpdf';
+// index.js
+import express from "express";
+import bodyParser from "body-parser";
+import fs from "fs";
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+app.use(bodyParser.json({ limit: "50mb" }));
 
-app.use(express.json({ limit: '50mb' }));
+// Define o tamanho do placeholder em bytes (8192 é padrão seguro)
+const PLACEHOLDER_LENGTH = 8192;
 
-// === Rota: preparar PDF ===
-app.post('/preparar-para-assinatura', async (req, res) => {
+// ======================
+// ROTA: Preparar PDF
+// ======================
+app.post("/preparar-para-assinatura", async (req, res) => {
   try {
     const { pdfBase64 } = req.body;
-    if (!pdfBase64) return res.status(400).json({ error: 'O campo "pdfBase64" é obrigatório.' });
+    if (!pdfBase64)
+      return res
+        .status(400)
+        .json({ error: 'O campo "pdfBase64" é obrigatório.' });
 
-    const pdfBytes = Buffer.from(pdfBase64, 'base64');
-    const pdfDoc = await PDFDocument.load(pdfBytes);
+    const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
-    pdflibAddPlaceholder({
-      pdfDoc,
-      name: 'sig1',
-      reason: 'Assinatura digital',
-      contactInfo: 'contato@exemplo.com',
-      location: 'Brasil',
-      signatureLength: 8192,
-      subFilter: SUBFILTER_ETSI_CADES_DETACHED,
-    });
+    // Cria placeholder de zeros
+    const placeholder = Buffer.alloc(PLACEHOLDER_LENGTH, 0x00);
 
-    const modifiedPdfBytes = await pdfDoc.save({ useObjectStreams: false });
-    const modifiedPdfBase64 = Buffer.from(modifiedPdfBytes).toString('base64');
+    // Busca a última ocorrência de "%%EOF" para inserir o placeholder
+    // (essa abordagem é simples e funciona na maioria dos PDFs)
+    const eofIndex = pdfBuffer.lastIndexOf(Buffer.from("%%EOF"));
+    if (eofIndex === -1)
+      return res.status(400).json({ error: "PDF inválido." });
 
-    res.status(200).json({ pdfBase64: modifiedPdfBase64 });
-  } catch (error) {
-    console.error('Erro ao preparar PDF:', error);
-    res.status(500).json({ error: 'Falha ao preparar PDF para assinatura.' });
+    // Insere placeholder antes do EOF
+    const modifiedPdfBuffer = Buffer.concat([
+      pdfBuffer.slice(0, eofIndex),
+      placeholder,
+      pdfBuffer.slice(eofIndex),
+    ]);
+
+    const modifiedPdfBase64 = modifiedPdfBuffer.toString("base64");
+
+    res.json({ pdfBase64: modifiedPdfBase64 });
+  } catch (err) {
+    console.error("Erro ao preparar PDF:", err);
+    res.status(500).json({ error: "Falha ao preparar PDF." });
   }
 });
 
-// === Rota: finalizar assinatura ===
-app.post('/finalizar-assinatura', async (req, res) => {
+// ======================
+// Função auxiliar: injeta assinatura RAW
+// ======================
+function injectRawSignature(pdfBuffer, rawSignatureHex, placeholderLength = PLACEHOLDER_LENGTH) {
+  const signatureBuffer = Buffer.from(rawSignatureHex.replace(/\s+/g, ""), "hex");
+
+  if (signatureBuffer.length > placeholderLength) {
+    throw new Error("Assinatura maior que o espaço reservado.");
+  }
+
+  // Busca a posição do placeholder: sequência de zeros
+  const placeholderBuffer = Buffer.alloc(placeholderLength, 0x00);
+  const placeholderPos = pdfBuffer.indexOf(placeholderBuffer);
+
+  if (placeholderPos === -1) throw new Error("Placeholder de assinatura não encontrado.");
+
+  // Preenche o placeholder com a assinatura real
+  const paddedSignature = Buffer.concat([
+    signatureBuffer,
+    Buffer.alloc(placeholderLength - signatureBuffer.length, 0x00),
+  ]);
+
+  return Buffer.concat([
+    pdfBuffer.slice(0, placeholderPos),
+    paddedSignature,
+    pdfBuffer.slice(placeholderPos + placeholderLength),
+  ]);
+}
+
+// ======================
+// ROTA: Finalizar assinatura
+// ======================
+app.post("/finalizar-assinatura", async (req, res) => {
   try {
-    const { pdfBase64, signatureHex } = req.body;
-    if (!pdfBase64 || !signatureHex) {
-      return res.status(400).json({ error: 'Os campos "pdfBase64" e "signatureHex" são obrigatórios.' });
+    const { pdfBase64, rawSignatureHex } = req.body;
+    if (!pdfBase64 || !rawSignatureHex) {
+      return res
+        .status(400)
+        .json({ error: "Os campos 'pdfBase64' e 'rawSignatureHex' são obrigatórios." });
     }
 
-    const pdfBuffer = Buffer.from(pdfBase64, 'base64');
-    const signatureBuffer = Buffer.from(signatureHex, 'hex');
+    const pdfBuffer = Buffer.from(pdfBase64, "base64");
+    const signedPdfBuffer = injectRawSignature(pdfBuffer, rawSignatureHex);
 
-    const signedPdfBuffer = signpdf.sign(pdfBuffer, null, {
-      signature: signatureBuffer,
-      asBuffer: true,
-    });
-
-    const signedPdfBase64 = signedPdfBuffer.toString('base64');
-    res.status(200).json({ signedPdfBase64 });
-  } catch (error) {
-    console.error('Erro ao finalizar assinatura:', error);
-    res.status(500).json({ error: 'Falha ao injetar assinatura no PDF.' });
+    res.json({ pdfAssinadoBase64: signedPdfBuffer.toString("base64") });
+  } catch (err) {
+    console.error("Erro ao finalizar assinatura:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor de assinatura rodando na porta ${PORT}`);
-});
+app.listen(8080, () => console.log("Servidor de assinatura rodando na porta 8080"));
